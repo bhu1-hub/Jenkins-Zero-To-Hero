@@ -1,30 +1,30 @@
 pipeline {
   agent {
     docker {
-       image 'tata227/maven-docker-cli:3.9.6-eclipse-temurin-17'
+      image 'tata227/maven-docker-cli:3.9.6-eclipse-temurin-17'
       args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
     }
   }
 
   environment {
-    // SonarCloud info (replace with your actual values)
-    SONAR_ORG          = 'bhu1-hub'
-    SONAR_PROJECT_KEY  = 'bhu1-hub_Jenkins-Zero-To-Hero'
+    // SonarCloud info
+    SONAR_ORG         = 'bhu1-hub'
+    SONAR_PROJECT_KEY = 'bhu1-hub_Jenkins-Zero-To-Hero'
   }
 
   stages {
+
     stage('Checkout') {
-  steps {
-    git branch: 'main', url: 'https://github.com/bhu1-hub/Jenkins-Zero-To-Hero.git'
-  }
-}
+      steps {
+        git branch: 'main', url: 'https://github.com/bhu1-hub/Jenkins-Zero-To-Hero.git'
+      }
+    }
 
     stage('Build and Test') {
       steps {
         sh 'ls -ltr'
         sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn clean package'
         sh 'java -version'
-
       }
     }
 
@@ -44,14 +44,14 @@ pipeline {
     }
 
     stage('Quality Gate') {
-  steps {
-    waitForQualityGate abortPipeline: true
-  }
-}
+      steps {
+        waitForQualityGate abortPipeline: true
+      }
+    }
 
     stage('Build and Push Docker Image') {
       environment {
-        DOCKER_IMAGE = "tata227/spring-boot-app:${BUILD_NUMBER}"
+        DOCKER_IMAGE         = "tata227/spring-boot-app:${BUILD_NUMBER}"
         REGISTRY_CREDENTIALS = credentials('docker-cred')
       }
       steps {
@@ -66,25 +66,28 @@ pipeline {
     }
 
     stage('Update Deployment File') {
-  environment {
-    GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
-    GIT_USER_NAME = "bhu1-hub"
-  }
-  steps {
-    withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-      sh """
-        # Mark the Jenkins workspace as safe for Git
-        git config --global --add safe.directory '${WORKSPACE}'
+      environment {
+        GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
+        GIT_USER_NAME = "bhu1-hub"
+      }
+      steps {
+        withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+          sh """
+            # Mark the Jenkins workspace as safe for Git
+            git config --global --add safe.directory '${WORKSPACE}'
 
-        git config user.email "tatahakunama826@gmail.com"
-        git config user.name "tatahakunama826"
+            git config user.email "tatahakunama826@gmail.com"
+            git config user.name "tatahakunama826"
 
-        BUILD_NUMBER=${BUILD_NUMBER}
-        sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-        git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
-        git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-        git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-      """
+            BUILD_NUMBER=${BUILD_NUMBER}
+            sed -i "s/replaceImageTag/\${BUILD_NUMBER}/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+            git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+            git commit -m "Update deployment image to version \${BUILD_NUMBER}"
+            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+          """
+        }
+      }
     }
-  }
-}
+
+  } // end stages
+}   // end pipeline
